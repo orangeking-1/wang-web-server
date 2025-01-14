@@ -22,6 +22,7 @@ router.post('/api/login', (req, res) => {
         res.send(sendDataFormat(e, -1))
     }
 })
+
 // 注册的接口
 router.post('/api/register', (req, res) => {
     try {
@@ -45,7 +46,8 @@ router.post('/api/register', (req, res) => {
             // 获取注册的帐户名跟密码
             let info = {
                 account: req.body.account,
-                password: req.body.password
+                password: req.body.password,
+                location: req.body.addr
             }
             // 构建model实例
             let userData = new db.user(info)
@@ -102,10 +104,17 @@ router.post('/api/getArticleList', (req, res) => {
     try {
         let pageSize = Number(req.body.pageSize)
         let currentPage = Number(req.body.currentPage)
+        let search = req.body.search
         let sendData = {}
-        db.article.estimatedDocumentCount({}, (err, count) => {
-            sendData.total = count
-            db.article.find()
+        // db.article.estimatedDocumentCount({$or: [{title: {$regex: search}}, {content: {$regex: search}}]}, (err, count) => {
+        //     sendData.total = count
+        //     console.log(count)
+            db.article.find({$or: [{title: {$regex: search}}, {content: {$regex: search}}]}).count((err, doc) => {
+                if (err) return console.error('数据库出错（article查询数据出错），错误为：' + err)
+                sendData.total = doc
+            })
+
+            db.article.find({$or: [{title: {$regex: search}}, {content: {$regex: search}}]})
                 .sort({_id: -1}) // 按照 _id倒序排列
                 .limit(pageSize)  // 限制每页查询数量
                 .skip((currentPage - 1) * pageSize)  // 从第几个查询
@@ -118,7 +127,7 @@ router.post('/api/getArticleList', (req, res) => {
                     sendData.listData = doc
                     res.send(sendDataFormat(sendData))
                 })
-        })
+        // })
     } catch (e) {
         console.log('文章列表接口出错，错误为：' + e)
         res.send(sendDataFormat(e, -1))
@@ -239,7 +248,47 @@ router.post('/api/editProject', (req, res) => {
     }
 })
 
+// 添加评论
+router.post('/api/addComment', (req, res) => {
+    try {
+        new db.comment(req.body).save(err => {
+            if (err) return console.error('数据库出错（commnet保存数据出错），错误为：' + err)
+            res.send(sendDataFormat('添加成功！'))
+        })
+    } catch (e) {
+        console.log('添加评论接口出错，错误为：' + e)
+        res.send(sendDataFormat(e, -1))
+    }
+})
 
+// 获取评论列表
+router.post('/api/getCommentList', (req, res) => {
+    try {
+        // 类型：1网站留言，2是文章评价，3项目评价，4对他人的评论
+        let type = req.body.type
+        let articleId = req.body.articleId
+        db.comment.find({type, articleId}).populate('author').sort({_id: -1}).exec((err, doc) => {
+            if (err) return console.error('数据库出错（comment查询出错），错误为：' + err)
+            res.send(sendDataFormat(doc))
+        })
+    } catch (e) {
+        console.log('获取评论列表出错，错误为' + e)
+        res.send(sendDataFormat(e, -1))
+    }
+})
+
+// 删除评论列表
+router.post('/api/deleteComment', (req, res) => {
+    try {
+        db.comment.findByIdAndRemove({_id: req.body._id}, (err, doc) => {
+            if (err) return console.error('数据库出错（comment删除数据出错），错误为：' + err)
+            res.send(sendDataFormat(doc))
+        })
+    } catch (e) {
+        console.log('删除评论出错，错误为' + e)
+        res.send(sendDataFormat(e, -1))
+    }
+})
 
 // 封装发送的数据格式
 // 成功
@@ -259,6 +308,3 @@ function sendDataFormat(data, code) {
 
 module.exports = router
 
-let a = new Promise((resolve, reject) => {
-
-})
